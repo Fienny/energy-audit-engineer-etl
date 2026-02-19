@@ -1,0 +1,172 @@
+/* ── Reset & Base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --bg: #f1f5f9;
+  --card: #ffffff;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --radius: 8px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+/* ── Layout ──────────────────────────────────────────────── */
+.app-header {
+  background: var(--primary);
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.app-header h1 { font-size: 1.1rem; font-weight: 600; }
+.app-header .user-info { font-size: 0.85rem; display: flex; gap: 1rem; align-items: center; }
+.app-header button { background: rgba(255,255,255,0.2); border: none; color: #fff; padding: 0.4rem 0.8rem; border-radius: var(--radius); cursor: pointer; }
+
+.container { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+
+/* ── Tabs ────────────────────────────────────────────────── */
+.tabs { display: flex; gap: 0.25rem; border-bottom: 2px solid var(--border); margin-bottom: 1rem; overflow-x: auto; }
+.tab-btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Cards & Forms ───────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+}
+.card h3 { margin-bottom: 0.75rem; font-size: 1rem; }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+.form-group { display: flex; flex-direction: column; }
+.form-group label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.2rem; }
+.form-group input, .form-group select, .form-group textarea {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  background: #fff;
+}
+.form-group textarea { resize: vertical; min-height: 60px; }
+.form-group.full { grid-column: 1 / -1; }
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-dark); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-warning { background: var(--warning); color: #fff; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+
+/* ── Tables ──────────────────────────────────────────────── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.data-table th, .data-table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+.data-table th { background: var(--bg); font-weight: 600; color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; }
+.data-table tr:hover { background: #f8fafc; }
+
+/* ── Status badges ───────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge-new { background: #dbeafe; color: #1d4ed8; }
+.badge-in_progress { background: #fef3c7; color: #92400e; }
+.badge-inspection_done { background: #d1fae5; color: #065f46; }
+.badge-report_generated { background: #ede9fe; color: #5b21b6; }
+.badge-closed { background: #f1f5f9; color: #475569; }
+.badge-draft { background: #fef3c7; color: #92400e; }
+.badge-submitted { background: #d1fae5; color: #065f46; }
+
+/* ── Login page ──────────────────────────────────────────── */
+.login-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+.login-box {
+  background: var(--card);
+  padding: 2rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  width: 100%;
+  max-width: 360px;
+}
+.login-box h2 { margin-bottom: 1rem; text-align: center; }
+
+/* ── Toast ───────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: var(--text);
+  color: #fff;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.toast.show { opacity: 1; }
+.toast.error { background: var(--danger); }
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .data-table { font-size: 0.78rem; }
+  .data-table th, .data-table td { padding: 0.4rem; }
+  .container { padding: 0.5rem; }
+}

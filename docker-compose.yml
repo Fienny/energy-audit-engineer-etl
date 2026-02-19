@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: energy_audit
+      POSTGRES_PASSWORD: energy_audit_secret
+      POSTGRES_DB: energy_audit
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/ddl.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      APP_POSTGRES_HOST: db
+      APP_POSTGRES_PORT: 5432
+      APP_POSTGRES_USER: energy_audit
+      APP_POSTGRES_PASSWORD: energy_audit_secret
+      APP_POSTGRES_DB: energy_audit
+      APP_SECRET_KEY: change-me-in-production
+    ports:
+      - "8000:8000"
+
+volumes:
+  pgdata:

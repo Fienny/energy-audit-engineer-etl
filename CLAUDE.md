@@ -50,6 +50,8 @@ energy-audit-engineer-etl/
 │   └── ddl.sql                   # PostgreSQL schema + seed admin user
 ├── docker-compose.yml            # PostgreSQL 16 + backend service
 ├── .env.example                  # Environment variable template
+├── docs/
+│   └── reference.docx            # Generated reference: all enums, statuses, metrics (Russian)
 ├── .gitignore
 └── CLAUDE.md                     # ← This file
 ```
@@ -154,3 +156,20 @@ docker-compose up --build
    - `style.css` — responsive layout, status badges, tablet-friendly.
 9. **Docker Compose** — PostgreSQL 16 + FastAPI backend, DDL auto-applied via docker-entrypoint-initdb.d.
 10. **Configuration** — `.env.example`, `.gitignore`, `Dockerfile`.
+
+### 2026-02-19 — Reference Document (Russian)
+
+**What was done:**
+
+1. **Reference Word document** (`docs/reference.docx`):
+   - Created `scripts/generate_reference_doc.py` — standalone script that generates the reference .docx.
+   - The document contains full Russian-language descriptions of:
+     - **User roles** (operator, engineer, admin) — with access rights.
+     - **Application statuses** (new → in_progress → inspection_done → report_generated → closed) — with transition rules and who triggers each.
+     - **Inspection statuses** (draft → submitted) — with locking explanation.
+     - **Object types** (residential, commercial, industrial, public_building, other) — with examples.
+     - **Service types** (energy_audit) — with extensibility notes.
+     - **All 11 core metrics** — field name, Russian name, unit, data type, description.
+     - **Extra metrics (JSONB)** — format and usage.
+     - **All 5 database tables** — full field-by-field reference with types and descriptions.
+   - Output: `docs/reference.docx` (42 KB), generated via python-docx.

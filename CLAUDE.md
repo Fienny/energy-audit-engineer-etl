@@ -53,6 +53,7 @@ energy-audit-engineer-etl/
 ├── docs/
 │   └── reference.docx            # Generated reference: all enums, statuses, metrics (Russian)
 ├── .gitignore
+├── README.md                     # Project documentation (Russian)
 └── CLAUDE.md                     # ← This file
 ```
 
@@ -173,3 +174,21 @@ docker-compose up --build
      - **Extra metrics (JSONB)** — format and usage.
      - **All 5 database tables** — full field-by-field reference with types and descriptions.
    - Output: `docs/reference.docx` (42 KB), generated via python-docx.
+
+### 2026-02-20 — README.md
+
+**What was done:**
+
+1. **README.md** created (Russian language) with:
+   - Project description and feature list.
+   - Tech stack table.
+   - Quick start guide (docker-compose).
+   - First steps after launch (step-by-step).
+   - Full project structure tree.
+   - ER diagram (text).
+   - Business process flow diagram (text).
+   - API endpoints table.
+   - Metrics reference table (11 core metrics + JSONB).
+   - Extensibility guide.
+   - Environment variables reference.
+   - Link to reference.docx for detailed Russian docs.

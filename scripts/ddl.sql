@@ -100,4 +100,4 @@ CREATE INDEX ix_inspections_app_status ON inspections(application_id, status);
 -- Seed: default admin user (password = "admin")
 -- bcrypt hash for "admin"
 INSERT INTO users (username, hashed_password, full_name, role)
-VALUES ('admin', '$2b$12$LJ3m4ys3Lk0TSwHleDPquODMvGr2g3RjGCxqNzPCf0LnQqYv7.cGy', 'Администратор', 'admin');
+VALUES ('admin', '$2b$12$1VWu8f85hA5zn1zBKBsQCu12fi3SYg/1BaQf9Mvvb85ILH/POLD5O', 'Администратор', 'admin');

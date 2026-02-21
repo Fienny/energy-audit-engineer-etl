@@ -222,14 +222,19 @@ function renderInspectionRow(insp) {
     ['T снаружи', insp.outdoor_temperature, '°C'],
   ].filter(m => m[1] != null);
 
+  // Add extra_metrics from JSONB
+  const extraMetrics = insp.extra_metrics ? Object.entries(insp.extra_metrics).map(([k, v]) => [k, v, '']) : [];
+
+  const allMetrics = [...metrics, ...extraMetrics];
+
   return `
     <div style="border-left:3px solid var(--primary);padding-left:0.75rem;margin-bottom:0.75rem">
       <p><strong>Инженер:</strong> ${insp.engineer?.full_name || `ID ${insp.engineer_id}`}
          ${badge(insp.status)}
          ${insp.submitted_at ? ` — отправлено ${fmtDate(insp.submitted_at)}` : ''}</p>
-      ${metrics.length ? `<table class="data-table" style="margin-top:0.5rem">
+      ${allMetrics.length ? `<table class="data-table" style="margin-top:0.5rem">
         <thead><tr><th>Метрика</th><th>Значение</th><th>Ед.</th></tr></thead>
-        <tbody>${metrics.map(m => `<tr><td>${m[0]}</td><td>${m[1]}</td><td>${m[2]}</td></tr>`).join('')}</tbody>
+        <tbody>${allMetrics.map(m => `<tr><td>${m[0]}</td><td>${m[1]}</td><td>${m[2]}</td></tr>`).join('')}</tbody>
       </table>` : '<p>Метрики не заполнены</p>'}
       ${insp.notes ? `<p style="margin-top:0.3rem"><em>${insp.notes}</em></p>` : ''}
     </div>`;
@@ -426,7 +431,12 @@ async function openInspection(appId) {
           <div class="form-group"><label>T снаружи (°C)</label><input id="m-tout" type="number" step="0.1" value="${existing?.outdoor_temperature ?? ''}"></div>
           <div class="form-group full"><label>Примечания</label><textarea id="m-notes">${existing?.notes ?? ''}</textarea></div>
         </div>
-        <div class="actions">
+        <div class="card" style="margin-top:1rem">
+          <h4>Дополнительные метрики</h4>
+          <div id="extra-metrics-list"></div>
+          <button class="btn btn-sm" id="add-extra-metric" type="button">+ Добавить поле</button>
+        </div>
+        <div class="actions" style="margin-top:1rem">
           <button class="btn btn-primary" id="m-save">Сохранить черновик</button>
           <button class="btn btn-success" id="m-submit">Отправить (заблокировать)</button>
           ${existing ? `<button class="btn btn-danger" id="m-delete">Удалить</button>` : ''}
@@ -435,6 +445,43 @@ async function openInspection(appId) {
       </div>`;
 
     if (existing?.status === 'submitted') return;
+
+    // ── Extra metrics dynamic fields ──
+    const extraList = $('#extra-metrics-list');
+    let extraCounter = 0;
+
+    function addExtraMetricRow(name = '', value = '') {
+      const id = extraCounter++;
+      const row = document.createElement('div');
+      row.className = 'form-grid';
+      row.style.marginBottom = '0.5rem';
+      row.dataset.extraId = id;
+      row.innerHTML = `
+        <div class="form-group"><label>Название</label><input class="extra-name" value="${name}"></div>
+        <div class="form-group"><label>Значение</label><input class="extra-value" type="number" step="any" value="${value}"></div>
+        <div class="form-group" style="align-self:end"><button class="btn btn-sm btn-danger extra-remove" type="button">✕</button></div>`;
+      row.querySelector('.extra-remove').onclick = () => row.remove();
+      extraList.appendChild(row);
+    }
+
+    // Pre-fill existing extra_metrics
+    if (existing?.extra_metrics) {
+      for (const [k, v] of Object.entries(existing.extra_metrics)) {
+        addExtraMetricRow(k, v);
+      }
+    }
+
+    $('#add-extra-metric').onclick = () => addExtraMetricRow();
+
+    function collectExtraMetrics() {
+      const result = {};
+      $$('#extra-metrics-list .form-grid').forEach(row => {
+        const name = row.querySelector('.extra-name').value.trim();
+        const val = row.querySelector('.extra-value').value;
+        if (name && val !== '') result[name] = parseFloat(val);
+      });
+      return Object.keys(result).length ? result : null;
+    }
 
     function collectMetrics() {
       const num = (id) => { const v = $(id).value; return v !== '' ? parseFloat(v) : null; };
@@ -452,6 +499,7 @@ async function openInspection(appId) {
         indoor_temperature: num('#m-tin'),
         outdoor_temperature: num('#m-tout'),
         notes: str('#m-notes'),
+        extra_metrics: collectExtraMetrics(),
       };
     }
 

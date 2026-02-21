@@ -57,7 +57,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False)
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -96,7 +96,7 @@ class AuditObject(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), nullable=False)
     address: Mapped[str] = mapped_column(Text, nullable=False)
-    object_type: Mapped[ObjectType] = mapped_column(Enum(ObjectType), nullable=False)
+    object_type: Mapped[ObjectType] = mapped_column(Enum(ObjectType, name="object_type"), nullable=False)
     total_area: Mapped[float | None] = mapped_column(Numeric(12, 2))
     floors: Mapped[int | None] = mapped_column(Integer)
     year_built: Mapped[int | None] = mapped_column(Integer)
@@ -124,7 +124,7 @@ class Application(Base):
         ForeignKey("audit_objects.id"), unique=True, nullable=False
     )
     status: Mapped[ApplicationStatus] = mapped_column(
-        Enum(ApplicationStatus), default=ApplicationStatus.new, nullable=False
+        Enum(ApplicationStatus, name="application_status"), default=ApplicationStatus.new, nullable=False
     )
     service_type: Mapped[str] = mapped_column(
         String(100), default="energy_audit", nullable=False
@@ -167,7 +167,7 @@ class Inspection(Base):
         ForeignKey("users.id"), nullable=False
     )
     status: Mapped[InspectionStatus] = mapped_column(
-        Enum(InspectionStatus), default=InspectionStatus.draft, nullable=False
+        Enum(InspectionStatus, name="inspection_status"), default=InspectionStatus.draft, nullable=False
     )
 
     # ── Core energy-audit metrics (typed columns for indexing / reporting) ──

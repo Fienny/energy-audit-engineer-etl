@@ -70,6 +70,10 @@ CREATE TABLE inspections (
     engineer_id             INTEGER           NOT NULL REFERENCES users(id),
     status                  inspection_status NOT NULL DEFAULT 'draft',
 
+    -- Building classification
+    building_type           VARCHAR(100),
+    building_subtype        VARCHAR(100),
+
     -- Core energy-audit metrics
     heating_consumption     NUMERIC(12,2),
     electricity_consumption NUMERIC(12,2),

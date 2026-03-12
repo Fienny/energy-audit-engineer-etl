@@ -4,6 +4,7 @@
 :root {
   --primary: #2563eb;
   --primary-dark: #1d4ed8;
+  --primary-light: #dbeafe;
   --bg: #f1f5f9;
   --card: #ffffff;
   --text: #1e293b;
@@ -55,8 +56,6 @@ body {
 }
 .tab-btn:hover { color: var(--text); }
 .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
-.tab-panel { display: none; }
-.tab-panel.active { display: block; }
 
 /* ── Cards & Forms ───────────────────────────────────────── */
 .card {
@@ -144,7 +143,8 @@ body {
   width: 100%;
   max-width: 360px;
 }
-.login-box h2 { margin-bottom: 1rem; text-align: center; }
+.login-box h2 { margin-bottom: 0.25rem; text-align: center; }
+.login-subtitle { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem; }
 
 /* ── Toast ───────────────────────────────────────────────── */
 .toast {
@@ -163,10 +163,142 @@ body {
 .toast.show { opacity: 1; }
 .toast.error { background: var(--danger); }
 
+/* ══ Building Type / Subtype Selection ══════════════════════ */
+.building-type-section {
+  margin-bottom: 1.5rem;
+}
+
+.section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid var(--primary-light);
+}
+
+.building-type-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ── Type cards (top row) ── */
+.type-selector label,
+.subtype-selector label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.type-cards {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+}
+
+.type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.75rem 0.5rem;
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+  color: var(--text);
+  text-align: center;
+  min-height: 72px;
+}
+
+.type-card:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+}
+
+.type-card.active {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.type-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.type-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* ── Subtype cards ── */
+.subtype-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.subtype-card {
+  padding: 0.5rem 1rem;
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.82rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.subtype-card:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.subtype-card.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+/* ── Metrics sections ── */
+.metrics-section {
+  margin-top: 1.25rem;
+}
+
+.submitted-notice {
+  background: #d1fae5;
+  color: #065f46;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
   .form-grid { grid-template-columns: 1fr; }
+  .type-cards { grid-template-columns: repeat(3, 1fr); }
   .data-table { font-size: 0.78rem; }
   .data-table th, .data-table td { padding: 0.4rem; }
   .container { padding: 0.5rem; }
+}
+
+@media (max-width: 480px) {
+  .type-cards { grid-template-columns: repeat(2, 1fr); }
+  .subtype-card { font-size: 0.75rem; padding: 0.4rem 0.75rem; }
 }

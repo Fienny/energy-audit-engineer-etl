@@ -1,10 +1,11 @@
 /**
  * app.js — main application logic.
- * Handles routing between login / operator / engineer views,
- * tab switching, and all CRUD operations.
+ * Engineer-focused energy audit system.
+ * Handles login, inspection workflow with building type/subtype selection.
  */
 
 let currentUser = null;
+let buildingTypesCache = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -21,16 +22,23 @@ function toast(msg, isError = false) {
 
 function badge(status) {
   const labels = {
-    new: 'Новая', in_progress: 'В работе', inspection_done: 'Обследование завершено',
-    report_generated: 'Отчёт создан', closed: 'Закрыта',
-    draft: 'Черновик', submitted: 'Отправлено',
+    new: 'New', in_progress: 'In Progress', inspection_done: 'Inspection Done',
+    report_generated: 'Report Generated', closed: 'Closed',
+    draft: 'Draft', submitted: 'Submitted',
   };
   return `<span class="badge badge-${status}">${labels[status] || status}</span>`;
 }
 
 function fmtDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+/** Fetch and cache building types from API */
+async function getBuildingTypes() {
+  if (buildingTypesCache) return buildingTypesCache;
+  buildingTypesCache = await api.get('/building-types');
+  return buildingTypesCache;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────
@@ -51,16 +59,17 @@ function showLogin() {
   $('#app').innerHTML = `
     <div class="login-wrapper">
       <div class="login-box">
-        <h2>Энергоаудит</h2>
+        <h2>Energy Audit</h2>
+        <p class="login-subtitle">Engineer Portal</p>
         <div class="form-group" style="margin-bottom:0.75rem">
-          <label>Логин</label>
+          <label>Login</label>
           <input id="login-user" type="text" autocomplete="username">
         </div>
         <div class="form-group" style="margin-bottom:0.75rem">
-          <label>Пароль</label>
+          <label>Password</label>
           <input id="login-pass" type="password" autocomplete="current-password">
         </div>
-        <button class="btn btn-primary" style="width:100%" id="login-btn">Войти</button>
+        <button class="btn btn-primary" style="width:100%" id="login-btn">Sign In</button>
       </div>
     </div>`;
   $('#login-btn').onclick = async () => {
@@ -70,7 +79,6 @@ function showLogin() {
       showApp();
     } catch (e) { toast(e.message, true); }
   };
-  // Enter key support
   $('#login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('#login-btn').click(); });
 }
 
@@ -78,31 +86,28 @@ function showLogin() {
 
 function showApp() {
   const isEngineer = currentUser.role === 'engineer';
-  const isOperator = currentUser.role === 'operator';
   const isAdmin = currentUser.role === 'admin';
 
   let tabs = '';
-  if (isOperator || isAdmin) {
-    tabs = `
-      <button class="tab-btn active" data-tab="applications">Заявки</button>
-      <button class="tab-btn" data-tab="clients">Клиенты</button>
-      <button class="tab-btn" data-tab="new-app">Новая заявка</button>`;
-  }
   if (isEngineer) {
     tabs = `
-      <button class="tab-btn active" data-tab="available">Доступные заявки</button>
-      <button class="tab-btn" data-tab="my-inspections">Мои обследования</button>`;
+      <button class="tab-btn active" data-tab="available">Available Applications</button>
+      <button class="tab-btn" data-tab="my-inspections">My Inspections</button>`;
   }
   if (isAdmin) {
-    tabs += `<button class="tab-btn" data-tab="users">Пользователи</button>`;
+    tabs = `
+      <button class="tab-btn active" data-tab="applications">Applications</button>
+      <button class="tab-btn" data-tab="users">Users</button>`;
   }
+
+  const roleLabel = { engineer: 'Engineer', admin: 'Admin', operator: 'Operator' };
 
   $('#app').innerHTML = `
     <header class="app-header">
-      <h1>Энергоаудит</h1>
+      <h1>Energy Audit System</h1>
       <div class="user-info">
-        <span>${currentUser.full_name} (${currentUser.role})</span>
-        <button id="logout-btn">Выйти</button>
+        <span>${currentUser.full_name} (${roleLabel[currentUser.role] || currentUser.role})</span>
+        <button id="logout-btn">Sign Out</button>
       </div>
     </header>
     <div class="container">
@@ -112,7 +117,6 @@ function showApp() {
 
   $('#logout-btn').onclick = () => api.logout();
 
-  // Tab switching
   $$('.tab-btn').forEach(btn => {
     btn.onclick = () => {
       $$('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -121,7 +125,6 @@ function showApp() {
     };
   });
 
-  // Load first tab
   const firstTab = $('.tab-btn.active');
   if (firstTab) loadTab(firstTab.dataset.tab);
 }
@@ -132,25 +135,23 @@ function loadTab(tab) {
   const c = $('#tab-content');
   switch (tab) {
     case 'applications': return loadApplications(c);
-    case 'clients': return loadClients(c);
-    case 'new-app': return loadNewApplication(c);
     case 'available': return loadAvailableApplications(c);
     case 'my-inspections': return loadMyInspections(c);
     case 'users': return loadUsers(c);
   }
 }
 
-// ── Operator: Applications List ───────────────────────────────────────
+// ── Admin: Applications List ──────────────────────────────────────────
 
 async function loadApplications(container) {
-  container.innerHTML = '<p>Загрузка...</p>';
+  container.innerHTML = '<p>Loading...</p>';
   try {
     const apps = await api.get('/applications');
-    if (!apps.length) { container.innerHTML = '<p>Заявок пока нет.</p>'; return; }
+    if (!apps.length) { container.innerHTML = '<p>No applications yet.</p>'; return; }
     container.innerHTML = `
       <table class="data-table">
         <thead><tr>
-          <th>ID</th><th>Статус</th><th>Тип услуги</th><th>Объект</th><th>Дата</th><th>Отчёт</th><th></th>
+          <th>ID</th><th>Status</th><th>Service</th><th>Object</th><th>Date</th><th>Report</th><th></th>
         </tr></thead>
         <tbody>${apps.map(a => `
           <tr>
@@ -159,10 +160,10 @@ async function loadApplications(container) {
             <td>${a.service_type}</td>
             <td>${a.audit_object_id}</td>
             <td>${fmtDate(a.created_at)}</td>
-            <td>${a.report_generated ? 'Да' : 'Нет'}</td>
+            <td>${a.report_generated ? 'Yes' : 'No'}</td>
             <td>
-              <button class="btn btn-sm btn-primary" onclick="viewApplication(${a.id})">Подробнее</button>
-              <button class="btn btn-sm btn-success" onclick="downloadReport(${a.id})">Отчёт .docx</button>
+              <button class="btn btn-sm btn-primary" onclick="viewApplication(${a.id})">Details</button>
+              <button class="btn btn-sm btn-success" onclick="downloadReport(${a.id})">Report .docx</button>
             </td>
           </tr>`).join('')}
         </tbody>
@@ -170,7 +171,7 @@ async function loadApplications(container) {
   } catch (e) { toast(e.message, true); }
 }
 
-// ── Operator: View Application Detail ─────────────────────────────────
+// ── Admin: View Application Detail ────────────────────────────────────
 
 async function viewApplication(appId) {
   try {
@@ -182,198 +183,73 @@ async function viewApplication(appId) {
     const c = $('#tab-content');
     c.innerHTML = `
       <div class="card">
-        <h3>Заявка #${app.id} ${badge(app.status)}</h3>
-        <p><strong>Тип услуги:</strong> ${app.service_type}</p>
-        <p><strong>Оператор:</strong> ${app.operator?.full_name || '—'}</p>
-        <p><strong>Создана:</strong> ${fmtDate(app.created_at)}</p>
-        ${app.notes ? `<p><strong>Заметки:</strong> ${app.notes}</p>` : ''}
+        <h3>Application #${app.id} ${badge(app.status)}</h3>
+        <p><strong>Service:</strong> ${app.service_type}</p>
+        <p><strong>Created:</strong> ${fmtDate(app.created_at)}</p>
+        ${app.notes ? `<p><strong>Notes:</strong> ${app.notes}</p>` : ''}
       </div>
       ${obj ? `<div class="card">
-        <h3>Объект</h3>
-        <p><strong>Адрес:</strong> ${obj.address}</p>
-        <p><strong>Тип:</strong> ${obj.object_type}</p>
-        ${obj.total_area ? `<p><strong>Площадь:</strong> ${obj.total_area} м²</p>` : ''}
-        ${obj.floors ? `<p><strong>Этажей:</strong> ${obj.floors}</p>` : ''}
-        ${obj.year_built ? `<p><strong>Год постройки:</strong> ${obj.year_built}</p>` : ''}
+        <h3>Object</h3>
+        <p><strong>Address:</strong> ${obj.address}</p>
+        <p><strong>Type:</strong> ${obj.object_type}</p>
+        ${obj.total_area ? `<p><strong>Area:</strong> ${obj.total_area} m&sup2;</p>` : ''}
+        ${obj.floors ? `<p><strong>Floors:</strong> ${obj.floors}</p>` : ''}
+        ${obj.year_built ? `<p><strong>Year built:</strong> ${obj.year_built}</p>` : ''}
       </div>` : ''}
       <div class="card">
-        <h3>Обследования (${inspections.length})</h3>
-        ${inspections.length ? inspections.map(renderInspectionRow).join('') : '<p>Пока нет обследований.</p>'}
+        <h3>Inspections (${inspections.length})</h3>
+        ${inspections.length ? inspections.map(renderInspectionRow).join('') : '<p>No inspections yet.</p>'}
       </div>
       <div class="actions">
-        <button class="btn btn-primary" onclick="loadTab('applications')">Назад к списку</button>
-        <button class="btn btn-success" onclick="downloadReport(${app.id})">Скачать отчёт .docx</button>
+        <button class="btn btn-primary" onclick="loadTab('applications')">Back to list</button>
+        <button class="btn btn-success" onclick="downloadReport(${app.id})">Download report .docx</button>
       </div>`;
   } catch (e) { toast(e.message, true); }
 }
 
 function renderInspectionRow(insp) {
   const metrics = [
-    ['Тепло', insp.heating_consumption, 'Гкал'],
-    ['Электричество', insp.electricity_consumption, 'кВт·ч'],
-    ['Вода', insp.water_consumption, 'м³'],
-    ['Газ', insp.gas_consumption, 'м³'],
-    ['Стены', insp.wall_thickness_mm, 'мм'],
-    ['Окна', insp.window_type, ''],
-    ['Утепление', insp.insulation_type, ''],
-    ['Терм. сопр.', insp.thermal_resistance, 'м²·°C/Вт'],
-    ['Воздухопр.', insp.air_tightness, ''],
-    ['T внутри', insp.indoor_temperature, '°C'],
-    ['T снаружи', insp.outdoor_temperature, '°C'],
+    ['Heating', insp.heating_consumption, 'Gcal'],
+    ['Electricity', insp.electricity_consumption, 'kWh'],
+    ['Water', insp.water_consumption, 'm\u00B3'],
+    ['Gas', insp.gas_consumption, 'm\u00B3'],
+    ['Wall thickness', insp.wall_thickness_mm, 'mm'],
+    ['Windows', insp.window_type, ''],
+    ['Insulation', insp.insulation_type, ''],
+    ['Thermal resistance', insp.thermal_resistance, 'm\u00B2\u00B7\u00B0C/W'],
+    ['Air tightness', insp.air_tightness, ''],
+    ['T indoor', insp.indoor_temperature, '\u00B0C'],
+    ['T outdoor', insp.outdoor_temperature, '\u00B0C'],
   ].filter(m => m[1] != null);
 
-  // Add extra_metrics from JSONB
   const extraMetrics = insp.extra_metrics ? Object.entries(insp.extra_metrics).map(([k, v]) => [k, v, '']) : [];
-
   const allMetrics = [...metrics, ...extraMetrics];
 
   return `
     <div style="border-left:3px solid var(--primary);padding-left:0.75rem;margin-bottom:0.75rem">
-      <p><strong>Инженер:</strong> ${insp.engineer?.full_name || `ID ${insp.engineer_id}`}
+      <p><strong>Engineer:</strong> ${insp.engineer?.full_name || `ID ${insp.engineer_id}`}
          ${badge(insp.status)}
-         ${insp.submitted_at ? ` — отправлено ${fmtDate(insp.submitted_at)}` : ''}</p>
+         ${insp.submitted_at ? ` \u2014 submitted ${fmtDate(insp.submitted_at)}` : ''}</p>
+      ${insp.building_type ? `<p><strong>Building:</strong> ${insp.building_type} \u2014 ${insp.building_subtype || '—'}</p>` : ''}
       ${allMetrics.length ? `<table class="data-table" style="margin-top:0.5rem">
-        <thead><tr><th>Метрика</th><th>Значение</th><th>Ед.</th></tr></thead>
+        <thead><tr><th>Metric</th><th>Value</th><th>Unit</th></tr></thead>
         <tbody>${allMetrics.map(m => `<tr><td>${m[0]}</td><td>${m[1]}</td><td>${m[2]}</td></tr>`).join('')}</tbody>
-      </table>` : '<p>Метрики не заполнены</p>'}
+      </table>` : '<p>No metrics filled</p>'}
       ${insp.notes ? `<p style="margin-top:0.3rem"><em>${insp.notes}</em></p>` : ''}
     </div>`;
-}
-
-// ── Operator: Clients ─────────────────────────────────────────────────
-
-async function loadClients(container) {
-  container.innerHTML = '<p>Загрузка...</p>';
-  try {
-    const clients = await api.get('/clients');
-    container.innerHTML = `
-      <div class="card">
-        <h3>Новый клиент</h3>
-        <div class="form-grid">
-          <div class="form-group"><label>Название / ФИО *</label><input id="cl-name"></div>
-          <div class="form-group"><label>Контактное лицо</label><input id="cl-contact"></div>
-          <div class="form-group"><label>Телефон</label><input id="cl-phone"></div>
-          <div class="form-group"><label>Email</label><input id="cl-email"></div>
-          <div class="form-group full"><label>Адрес</label><input id="cl-address"></div>
-        </div>
-        <div class="actions"><button class="btn btn-primary" id="cl-save">Сохранить клиента</button></div>
-      </div>
-      <table class="data-table">
-        <thead><tr><th>ID</th><th>Название</th><th>Контакт</th><th>Телефон</th><th>Email</th></tr></thead>
-        <tbody>${clients.map(c => `<tr><td>${c.id}</td><td>${c.name}</td><td>${c.contact_person||'—'}</td><td>${c.phone||'—'}</td><td>${c.email||'—'}</td></tr>`).join('')}</tbody>
-      </table>`;
-    $('#cl-save').onclick = async () => {
-      try {
-        await api.post('/clients', {
-          name: $('#cl-name').value,
-          contact_person: $('#cl-contact').value || null,
-          phone: $('#cl-phone').value || null,
-          email: $('#cl-email').value || null,
-          address: $('#cl-address').value || null,
-        });
-        toast('Клиент создан');
-        loadClients(container);
-      } catch (e) { toast(e.message, true); }
-    };
-  } catch (e) { toast(e.message, true); }
-}
-
-// ── Operator: Create Application ──────────────────────────────────────
-
-async function loadNewApplication(container) {
-  let clients = [];
-  try { clients = await api.get('/clients'); } catch {}
-
-  container.innerHTML = `
-    <div class="card">
-      <h3>Шаг 1: Выберите клиента</h3>
-      <div class="form-group">
-        <label>Клиент *</label>
-        <select id="na-client">
-          <option value="">— выберите —</option>
-          ${clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <div class="card">
-      <h3>Шаг 2: Объект обследования</h3>
-      <div class="form-grid">
-        <div class="form-group full"><label>Адрес *</label><input id="na-addr"></div>
-        <div class="form-group">
-          <label>Тип объекта *</label>
-          <select id="na-type">
-            <option value="residential">Жилой</option>
-            <option value="commercial">Коммерческий</option>
-            <option value="industrial">Промышленный</option>
-            <option value="public_building">Общественное здание</option>
-            <option value="other">Другое</option>
-          </select>
-        </div>
-        <div class="form-group"><label>Площадь (м²)</label><input id="na-area" type="number"></div>
-        <div class="form-group"><label>Этажей</label><input id="na-floors" type="number"></div>
-        <div class="form-group"><label>Год постройки</label><input id="na-year" type="number"></div>
-        <div class="form-group full"><label>Описание</label><textarea id="na-desc"></textarea></div>
-      </div>
-    </div>
-    <div class="card">
-      <h3>Шаг 3: Заявка</h3>
-      <div class="form-grid">
-        <div class="form-group">
-          <label>Тип услуги</label>
-          <select id="na-service">
-            <option value="energy_audit">Энергоаудит</option>
-          </select>
-        </div>
-        <div class="form-group full"><label>Примечания</label><textarea id="na-notes"></textarea></div>
-      </div>
-      <div class="actions"><button class="btn btn-primary" id="na-submit">Создать заявку</button></div>
-    </div>`;
-
-  $('#na-submit').onclick = async () => {
-    try {
-      const clientId = parseInt($('#na-client').value);
-      if (!clientId) throw new Error('Выберите клиента');
-      const addr = $('#na-addr').value;
-      if (!addr) throw new Error('Укажите адрес объекта');
-
-      // Create audit object
-      const obj = await api.post('/objects', {
-        client_id: clientId,
-        address: addr,
-        object_type: $('#na-type').value,
-        total_area: parseFloat($('#na-area').value) || null,
-        floors: parseInt($('#na-floors').value) || null,
-        year_built: parseInt($('#na-year').value) || null,
-        description: $('#na-desc').value || null,
-      });
-
-      // Create application
-      await api.post('/applications', {
-        audit_object_id: obj.id,
-        service_type: $('#na-service').value,
-        notes: $('#na-notes').value || null,
-      });
-
-      toast('Заявка создана');
-      // Switch to applications tab
-      $$('.tab-btn').forEach(b => b.classList.remove('active'));
-      const appsTab = $$('.tab-btn').find(b => b.dataset.tab === 'applications');
-      if (appsTab) { appsTab.classList.add('active'); loadTab('applications'); }
-    } catch (e) { toast(e.message, true); }
-  };
 }
 
 // ── Engineer: Available Applications ──────────────────────────────────
 
 async function loadAvailableApplications(container) {
-  container.innerHTML = '<p>Загрузка...</p>';
+  container.innerHTML = '<p>Loading...</p>';
   try {
     const apps = await api.get('/applications');
     const available = apps.filter(a => a.status !== 'closed');
-    if (!available.length) { container.innerHTML = '<p>Нет доступных заявок.</p>'; return; }
+    if (!available.length) { container.innerHTML = '<p>No available applications.</p>'; return; }
     container.innerHTML = `
       <table class="data-table">
-        <thead><tr><th>ID</th><th>Статус</th><th>Тип</th><th>Объект</th><th>Дата</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>Status</th><th>Service</th><th>Object</th><th>Date</th><th></th></tr></thead>
         <tbody>${available.map(a => `
           <tr>
             <td>${a.id}</td>
@@ -381,7 +257,7 @@ async function loadAvailableApplications(container) {
             <td>${a.service_type}</td>
             <td>${a.audit_object_id}</td>
             <td>${fmtDate(a.created_at)}</td>
-            <td><button class="btn btn-sm btn-primary" onclick="openInspection(${a.id})">Работать</button></td>
+            <td><button class="btn btn-sm btn-primary" onclick="openInspection(${a.id})">Work</button></td>
           </tr>`).join('')}
         </tbody>
       </table>`;
@@ -392,59 +268,144 @@ async function loadAvailableApplications(container) {
 
 async function openInspection(appId) {
   const c = $('#tab-content');
-  c.innerHTML = '<p>Загрузка...</p>';
+  c.innerHTML = '<p>Loading...</p>';
 
   try {
-    const [appDetail, myInspections] = await Promise.all([
+    const [appDetail, myInspections, buildingTypes] = await Promise.all([
       api.get(`/applications/${appId}`),
       api.get('/inspections/my'),
+      getBuildingTypes(),
     ]);
 
     const existing = myInspections.find(i => i.application_id === appId);
     const obj = appDetail.audit_object;
 
+    // Build building type options
+    const typeOptions = Object.keys(buildingTypes).map(t =>
+      `<option value="${t}" ${existing?.building_type === t ? 'selected' : ''}>${t}</option>`
+    ).join('');
+
+    // Build subtype options for current type
+    const currentType = existing?.building_type || '';
+    const subtypes = currentType ? (buildingTypes[currentType] || []) : [];
+    const subtypeOptions = subtypes.map(s =>
+      `<option value="${s}" ${existing?.building_subtype === s ? 'selected' : ''}>${s}</option>`
+    ).join('');
+
     c.innerHTML = `
       <div class="card">
-        <h3>Заявка #${appId} ${badge(appDetail.status)}</h3>
-        ${obj ? `<p><strong>Объект:</strong> ${obj.address} (${obj.object_type})</p>` : ''}
+        <h3>Application #${appId} ${badge(appDetail.status)}</h3>
+        ${obj ? `<p><strong>Object:</strong> ${obj.address} (${obj.object_type})</p>` : ''}
       </div>
       <div class="card">
-        <h3>${existing ? 'Редактировать обследование' : 'Новое обследование'}</h3>
-        ${existing?.status === 'submitted' ? '<p><strong>Данные отправлены и заблокированы.</strong></p>' : `
-        <div class="form-grid">
-          <div class="form-group"><label>Тепло (Гкал)</label><input id="m-heat" type="number" step="0.01" value="${existing?.heating_consumption ?? ''}"></div>
-          <div class="form-group"><label>Электричество (кВт·ч)</label><input id="m-elec" type="number" step="0.01" value="${existing?.electricity_consumption ?? ''}"></div>
-          <div class="form-group"><label>Вода (м³)</label><input id="m-water" type="number" step="0.01" value="${existing?.water_consumption ?? ''}"></div>
-          <div class="form-group"><label>Газ (м³)</label><input id="m-gas" type="number" step="0.01" value="${existing?.gas_consumption ?? ''}"></div>
-          <div class="form-group"><label>Толщина стен (мм)</label><input id="m-wall" type="number" step="0.01" value="${existing?.wall_thickness_mm ?? ''}"></div>
-          <div class="form-group">
-            <label>Тип окон</label>
-            <input id="m-window" value="${existing?.window_type ?? ''}">
+        <h3>${existing ? 'Edit Inspection' : 'New Inspection'}</h3>
+        ${existing?.status === 'submitted' ? '<p class="submitted-notice"><strong>Data submitted and locked.</strong></p>' : `
+
+        <!-- ══ Building Type / Subtype Selection ══ -->
+        <div class="building-type-section">
+          <h4 class="section-title">Building Classification</h4>
+          <div class="building-type-grid">
+            <div class="type-selector">
+              <label>Building Type</label>
+              <div class="type-cards" id="type-cards">
+                ${Object.keys(buildingTypes).map(t => `
+                  <button type="button" class="type-card ${existing?.building_type === t ? 'active' : ''}" data-type="${t}">
+                    <span class="type-icon">${getTypeIcon(t)}</span>
+                    <span class="type-label">${t}</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+            <div class="subtype-selector">
+              <label>Subtype</label>
+              <div class="subtype-cards" id="subtype-cards">
+                ${currentType ? renderSubtypeCards(buildingTypes[currentType], existing?.building_subtype) : '<p class="hint">Select a building type first</p>'}
+              </div>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Тип утепления</label>
-            <input id="m-insulation" value="${existing?.insulation_type ?? ''}">
-          </div>
-          <div class="form-group"><label>Терм. сопротивление</label><input id="m-thermal" type="number" step="0.0001" value="${existing?.thermal_resistance ?? ''}"></div>
-          <div class="form-group"><label>Воздухопроницаемость</label><input id="m-air" type="number" step="0.0001" value="${existing?.air_tightness ?? ''}"></div>
-          <div class="form-group"><label>T внутри (°C)</label><input id="m-tin" type="number" step="0.1" value="${existing?.indoor_temperature ?? ''}"></div>
-          <div class="form-group"><label>T снаружи (°C)</label><input id="m-tout" type="number" step="0.1" value="${existing?.outdoor_temperature ?? ''}"></div>
-          <div class="form-group full"><label>Примечания</label><textarea id="m-notes">${existing?.notes ?? ''}</textarea></div>
+          <input type="hidden" id="m-building-type" value="${existing?.building_type ?? ''}">
+          <input type="hidden" id="m-building-subtype" value="${existing?.building_subtype ?? ''}">
         </div>
+
+        <!-- ══ Metrics ══ -->
+        <div class="metrics-section">
+          <h4 class="section-title">Energy Metrics</h4>
+          <div class="form-grid">
+            <div class="form-group"><label>Heating (Gcal)</label><input id="m-heat" type="number" step="0.01" value="${existing?.heating_consumption ?? ''}"></div>
+            <div class="form-group"><label>Electricity (kWh)</label><input id="m-elec" type="number" step="0.01" value="${existing?.electricity_consumption ?? ''}"></div>
+            <div class="form-group"><label>Water (m\u00B3)</label><input id="m-water" type="number" step="0.01" value="${existing?.water_consumption ?? ''}"></div>
+            <div class="form-group"><label>Gas (m\u00B3)</label><input id="m-gas" type="number" step="0.01" value="${existing?.gas_consumption ?? ''}"></div>
+          </div>
+        </div>
+
+        <div class="metrics-section">
+          <h4 class="section-title">Building Envelope</h4>
+          <div class="form-grid">
+            <div class="form-group"><label>Wall thickness (mm)</label><input id="m-wall" type="number" step="0.01" value="${existing?.wall_thickness_mm ?? ''}"></div>
+            <div class="form-group"><label>Window type</label><input id="m-window" value="${existing?.window_type ?? ''}"></div>
+            <div class="form-group"><label>Insulation type</label><input id="m-insulation" value="${existing?.insulation_type ?? ''}"></div>
+            <div class="form-group"><label>Thermal resistance</label><input id="m-thermal" type="number" step="0.0001" value="${existing?.thermal_resistance ?? ''}"></div>
+            <div class="form-group"><label>Air tightness</label><input id="m-air" type="number" step="0.0001" value="${existing?.air_tightness ?? ''}"></div>
+          </div>
+        </div>
+
+        <div class="metrics-section">
+          <h4 class="section-title">Temperature</h4>
+          <div class="form-grid">
+            <div class="form-group"><label>T indoor (\u00B0C)</label><input id="m-tin" type="number" step="0.1" value="${existing?.indoor_temperature ?? ''}"></div>
+            <div class="form-group"><label>T outdoor (\u00B0C)</label><input id="m-tout" type="number" step="0.1" value="${existing?.outdoor_temperature ?? ''}"></div>
+          </div>
+        </div>
+
+        <div class="form-group full" style="margin-top:0.75rem"><label>Notes</label><textarea id="m-notes">${existing?.notes ?? ''}</textarea></div>
+
         <div class="card" style="margin-top:1rem">
-          <h4>Дополнительные метрики</h4>
+          <h4>Extra Metrics</h4>
           <div id="extra-metrics-list"></div>
-          <button class="btn btn-sm" id="add-extra-metric" type="button">+ Добавить поле</button>
+          <button class="btn btn-sm" id="add-extra-metric" type="button">+ Add field</button>
         </div>
         <div class="actions" style="margin-top:1rem">
-          <button class="btn btn-primary" id="m-save">Сохранить черновик</button>
-          <button class="btn btn-success" id="m-submit">Отправить (заблокировать)</button>
-          ${existing ? `<button class="btn btn-danger" id="m-delete">Удалить</button>` : ''}
-          <button class="btn" onclick="loadTab('available')">Назад</button>
+          <button class="btn btn-primary" id="m-save">Save Draft</button>
+          <button class="btn btn-success" id="m-submit">Submit (lock)</button>
+          ${existing ? `<button class="btn btn-danger" id="m-delete">Delete</button>` : ''}
+          <button class="btn" onclick="loadTab('available')">Back</button>
         </div>`}
       </div>`;
 
     if (existing?.status === 'submitted') return;
+
+    // ── Building type card click handling ──
+    $$('#type-cards .type-card').forEach(card => {
+      card.onclick = () => {
+        $$('#type-cards .type-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        const type = card.dataset.type;
+        $('#m-building-type').value = type;
+        $('#m-building-subtype').value = '';
+        const subtypes = buildingTypes[type] || [];
+        $('#subtype-cards').innerHTML = renderSubtypeCards(subtypes, null);
+        // Attach subtype click handlers
+        attachSubtypeHandlers();
+        // Auto-select if only one subtype
+        if (subtypes.length === 1) {
+          const singleCard = $('#subtype-cards .subtype-card');
+          if (singleCard) { singleCard.click(); }
+        }
+      };
+    });
+
+    function attachSubtypeHandlers() {
+      $$('#subtype-cards .subtype-card').forEach(card => {
+        card.onclick = () => {
+          $$('#subtype-cards .subtype-card').forEach(c => c.classList.remove('active'));
+          card.classList.add('active');
+          $('#m-building-subtype').value = card.dataset.subtype;
+        };
+      });
+    }
+
+    // Attach handlers for initially rendered subtypes
+    attachSubtypeHandlers();
 
     // ── Extra metrics dynamic fields ──
     const extraList = $('#extra-metrics-list');
@@ -457,14 +418,13 @@ async function openInspection(appId) {
       row.style.marginBottom = '0.5rem';
       row.dataset.extraId = id;
       row.innerHTML = `
-        <div class="form-group"><label>Название</label><input class="extra-name" value="${name}"></div>
-        <div class="form-group"><label>Значение</label><input class="extra-value" type="number" step="any" value="${value}"></div>
-        <div class="form-group" style="align-self:end"><button class="btn btn-sm btn-danger extra-remove" type="button">✕</button></div>`;
+        <div class="form-group"><label>Name</label><input class="extra-name" value="${name}"></div>
+        <div class="form-group"><label>Value</label><input class="extra-value" type="number" step="any" value="${value}"></div>
+        <div class="form-group" style="align-self:end"><button class="btn btn-sm btn-danger extra-remove" type="button">\u2715</button></div>`;
       row.querySelector('.extra-remove').onclick = () => row.remove();
       extraList.appendChild(row);
     }
 
-    // Pre-fill existing extra_metrics
     if (existing?.extra_metrics) {
       for (const [k, v] of Object.entries(existing.extra_metrics)) {
         addExtraMetricRow(k, v);
@@ -487,6 +447,8 @@ async function openInspection(appId) {
       const num = (id) => { const v = $(id).value; return v !== '' ? parseFloat(v) : null; };
       const str = (id) => $(id).value || null;
       return {
+        building_type: str('#m-building-type'),
+        building_subtype: str('#m-building-subtype'),
         heating_consumption: num('#m-heat'),
         electricity_consumption: num('#m-elec'),
         water_consumption: num('#m-water'),
@@ -512,14 +474,14 @@ async function openInspection(appId) {
         } else {
           await api.post('/inspections', { application_id: appId, ...metrics });
         }
-        toast('Сохранено');
-        openInspection(appId); // refresh
+        toast('Saved');
+        openInspection(appId);
       } catch (e) { toast(e.message, true); }
     };
 
     // Submit (lock)
     $('#m-submit').onclick = async () => {
-      if (!confirm('После отправки данные будут заблокированы. Продолжить?')) return;
+      if (!confirm('After submitting, data will be locked. Continue?')) return;
       try {
         const metrics = collectMetrics();
         let insp = existing;
@@ -529,7 +491,7 @@ async function openInspection(appId) {
           insp = await api.post('/inspections', { application_id: appId, ...metrics });
         }
         await api.post(`/inspections/${insp?.id || existing?.id}/submit`);
-        toast('Обследование отправлено');
+        toast('Inspection submitted');
         openInspection(appId);
       } catch (e) { toast(e.message, true); }
     };
@@ -537,10 +499,10 @@ async function openInspection(appId) {
     // Delete
     if (existing && $('#m-delete')) {
       $('#m-delete').onclick = async () => {
-        if (!confirm('Удалить обследование?')) return;
+        if (!confirm('Delete inspection?')) return;
         try {
           await api.delete(`/inspections/${existing.id}`);
-          toast('Удалено');
+          toast('Deleted');
           loadTab('available');
         } catch (e) { toast(e.message, true); }
       };
@@ -548,25 +510,53 @@ async function openInspection(appId) {
   } catch (e) { toast(e.message, true); }
 }
 
+// ── Building Type Icons ───────────────────────────────────────────────
+
+function getTypeIcon(type) {
+  const icons = {
+    'Apartments': '\uD83C\uDFE2',
+    'Serviced Apartments': '\uD83C\uDFE8',
+    'Hotel': '\u2B50',
+    'Resort': '\uD83C\uDFD6\uFE0F',
+    'Retail': '\uD83D\uDED2',
+    'Industrial': '\uD83C\uDFED',
+    'Office': '\uD83C\uDFE2',
+    'Healthcare': '\uD83C\uDFE5',
+    'Education': '\uD83C\uDF93',
+    'Mixed-use': '\uD83D\uDD00',
+  };
+  return icons[type] || '\uD83C\uDFE0';
+}
+
+function renderSubtypeCards(subtypes, selectedSubtype) {
+  if (!subtypes || !subtypes.length) return '<p class="hint">Select a building type first</p>';
+  return subtypes.map(s => `
+    <button type="button" class="subtype-card ${selectedSubtype === s ? 'active' : ''}" data-subtype="${s}">
+      ${s}
+    </button>
+  `).join('');
+}
+
 // ── Engineer: My Inspections ──────────────────────────────────────────
 
 async function loadMyInspections(container) {
-  container.innerHTML = '<p>Загрузка...</p>';
+  container.innerHTML = '<p>Loading...</p>';
   try {
     const inspections = await api.get('/inspections/my');
-    if (!inspections.length) { container.innerHTML = '<p>У вас пока нет обследований.</p>'; return; }
+    if (!inspections.length) { container.innerHTML = '<p>You have no inspections yet.</p>'; return; }
     container.innerHTML = `
       <table class="data-table">
-        <thead><tr><th>ID</th><th>Заявка</th><th>Статус</th><th>Обновлено</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>Application</th><th>Building</th><th>Status</th><th>Updated</th><th></th></tr></thead>
         <tbody>${inspections.map(i => `
           <tr>
             <td>${i.id}</td>
             <td>${i.application_id}</td>
+            <td>${i.building_type ? `${i.building_type} / ${i.building_subtype || '—'}` : '—'}</td>
             <td>${badge(i.status)}</td>
             <td>${fmtDate(i.updated_at)}</td>
             <td>
-              <button class="btn btn-sm btn-primary" onclick="openInspection(${i.application_id})">Открыть</button>
-              <button class="btn btn-sm btn-success" onclick="downloadReport(${i.application_id})">Отчёт</button>
+              <button class="btn btn-sm btn-primary" onclick="openInspection(${i.application_id})">Open</button>
+              <button class="btn btn-sm btn-success" onclick="downloadReport(${i.application_id})">Report</button>
             </td>
           </tr>`).join('')}
         </tbody>
@@ -577,30 +567,29 @@ async function loadMyInspections(container) {
 // ── Admin: Users ──────────────────────────────────────────────────────
 
 async function loadUsers(container) {
-  container.innerHTML = '<p>Загрузка...</p>';
+  container.innerHTML = '<p>Loading...</p>';
   try {
     const users = await api.get('/auth/users');
     container.innerHTML = `
       <div class="card">
-        <h3>Новый пользователь</h3>
+        <h3>New User</h3>
         <div class="form-grid">
-          <div class="form-group"><label>Логин</label><input id="u-login"></div>
-          <div class="form-group"><label>Пароль</label><input id="u-pass" type="password"></div>
-          <div class="form-group"><label>ФИО</label><input id="u-name"></div>
+          <div class="form-group"><label>Login</label><input id="u-login"></div>
+          <div class="form-group"><label>Password</label><input id="u-pass" type="password"></div>
+          <div class="form-group"><label>Full Name</label><input id="u-name"></div>
           <div class="form-group">
-            <label>Роль</label>
+            <label>Role</label>
             <select id="u-role">
-              <option value="operator">Оператор</option>
-              <option value="engineer">Инженер</option>
-              <option value="admin">Админ</option>
+              <option value="engineer">Engineer</option>
+              <option value="admin">Admin</option>
             </select>
           </div>
         </div>
-        <div class="actions"><button class="btn btn-primary" id="u-save">Создать</button></div>
+        <div class="actions"><button class="btn btn-primary" id="u-save">Create</button></div>
       </div>
       <table class="data-table">
-        <thead><tr><th>ID</th><th>Логин</th><th>ФИО</th><th>Роль</th><th>Активен</th></tr></thead>
-        <tbody>${users.map(u => `<tr><td>${u.id}</td><td>${u.username}</td><td>${u.full_name}</td><td>${u.role}</td><td>${u.is_active ? 'Да' : 'Нет'}</td></tr>`).join('')}</tbody>
+        <thead><tr><th>ID</th><th>Login</th><th>Full Name</th><th>Role</th><th>Active</th></tr></thead>
+        <tbody>${users.map(u => `<tr><td>${u.id}</td><td>${u.username}</td><td>${u.full_name}</td><td>${u.role}</td><td>${u.is_active ? 'Yes' : 'No'}</td></tr>`).join('')}</tbody>
       </table>`;
     $('#u-save').onclick = async () => {
       try {
@@ -610,7 +599,7 @@ async function loadUsers(container) {
           full_name: $('#u-name').value,
           role: $('#u-role').value,
         });
-        toast('Пользователь создан');
+        toast('User created');
         loadUsers(container);
       } catch (e) { toast(e.message, true); }
     };
@@ -622,6 +611,6 @@ async function loadUsers(container) {
 async function downloadReport(appId) {
   try {
     await api.downloadReport(appId);
-    toast('Отчёт скачан');
+    toast('Report downloaded');
   } catch (e) { toast(e.message, true); }
 }

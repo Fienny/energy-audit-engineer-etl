@@ -170,6 +170,10 @@ class Inspection(Base):
         Enum(InspectionStatus, name="inspection_status"), default=InspectionStatus.draft, nullable=False
     )
 
+    # ── Building classification ──
+    building_type: Mapped[str | None] = mapped_column(String(100))
+    building_subtype: Mapped[str | None] = mapped_column(String(100))
+
     # ── Core energy-audit metrics (typed columns for indexing / reporting) ──
     heating_consumption: Mapped[float | None] = mapped_column(Numeric(12, 2))
     electricity_consumption: Mapped[float | None] = mapped_column(Numeric(12, 2))

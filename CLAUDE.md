@@ -22,21 +22,24 @@ energy-audit-engineer-etl/
 │   ├── app/
 │   │   ├── api/routes/           # FastAPI route handlers
 │   │   │   ├── auth.py           # JWT login, /me, user CRUD (admin only)
-│   │   │   ├── clients.py        # Client CRUD (operator)
-│   │   │   ├── objects.py        # Audit object CRUD (operator)
+│   │   │   ├── clients.py        # Client CRUD (operator, backend only)
+│   │   │   ├── objects.py        # Audit object CRUD (operator, backend only)
 │   │   │   ├── applications.py   # Application CRUD + status transitions
 │   │   │   ├── inspections.py    # Inspection CRUD + submit/lock logic
-│   │   │   └── reports.py        # Word report generation & download
+│   │   │   ├── reports.py        # Word report generation & download
+│   │   │   └── building_types.py # Building type/subtype reference API
 │   │   ├── core/
 │   │   │   ├── config.py         # pydantic-settings, reads .env (prefix APP_)
-│   │   │   └── security.py       # JWT auth, bcrypt, role-based dependencies
+│   │   │   ├── security.py       # JWT auth, bcrypt, role-based dependencies
+│   │   │   └── building_types.py # Building type/subtype registry (single source of truth)
 │   │   ├── db/
 │   │   │   ├── base.py           # SQLAlchemy DeclarativeBase
 │   │   │   └── session.py        # Async engine, session factory, get_db
 │   │   ├── models/models.py      # All ORM models (User, Client, AuditObject, Application, Inspection)
 │   │   ├── schemas/schemas.py    # Pydantic request/response schemas
 │   │   ├── services/
-│   │   │   └── report_generator.py  # python-docx in-memory report generation
+│   │   │   ├── report_generator.py  # python-docx in-memory report generation
+│   │   │   └── formula_engine.py    # Formula calculation framework (extensible)
 │   │   └── main.py               # FastAPI app, CORS, router mounting, static files
 │   ├── static/                   # Frontend (served by FastAPI StaticFiles)
 │   │   ├── index.html            # Single HTML entry point
@@ -192,3 +195,39 @@ docker-compose up --build
    - Extensibility guide.
    - Environment variables reference.
    - Link to reference.docx for detailed Russian docs.
+
+### 2026-03-12 — Engineer-Only UI + Building Types + Formula Architecture
+
+**What was done:**
+
+1. **Removed operator UI from frontend** — site is now engineer-only:
+   - Removed "Clients" tab, "New Application" tab from frontend
+   - Admin sees "Applications" (view-only) and "Users" tabs
+   - Engineer sees "Available Applications" and "My Inspections"
+   - Operator role dropdown removed from user creation form
+   - UI language switched to English
+
+2. **Building Type / Subtype system** — 10 building types with subtypes:
+   - `backend/app/core/building_types.py` — single source of truth registry
+   - `backend/app/api/routes/building_types.py` — API endpoint `GET /api/v1/building-types`
+   - Types: Apartments, Serviced Apartments, Hotel, Resort, Retail, Industrial, Office, Healthcare, Education, Mixed-use
+   - Each type has defined subtypes (e.g., Hotel → 5-star..1-star)
+   - Added `building_type` and `building_subtype` columns to inspections (DB, ORM, schemas)
+
+3. **Beautiful cascading UI for building selection:**
+   - Building types shown as icon cards (grid layout, 5 columns)
+   - Subtypes shown as pill buttons, dynamically updated on type selection
+   - Auto-select when only one subtype exists
+   - Responsive: 3 columns on tablet, 2 on mobile
+
+4. **Formula calculation engine** (`backend/app/services/formula_engine.py`):
+   - Decorator-based formula registration: `@register_formula("Hotel", "5-star Hotel")`
+   - Wildcard support: `("*", "*")` for universal, `("Type", "*")` for type-level
+   - `calculate(metrics)` runs all applicable formulas and returns results
+   - Ready for real formulas when provided by customer
+
+5. **Inspection form reorganized** into logical sections:
+   - Building Classification (type + subtype cards)
+   - Energy Metrics (heating, electricity, water, gas)
+   - Building Envelope (walls, windows, insulation, thermal resistance, air tightness)
+   - Temperature (indoor/outdoor)

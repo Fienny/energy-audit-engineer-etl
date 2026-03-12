@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.routes import auth, clients, objects, applications, inspections, reports
+from app.api.routes import auth, clients, objects, applications, inspections, reports, building_types
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -21,7 +21,7 @@ app.add_middleware(
 )
 
 # API routes
-for r in (auth, clients, objects, applications, inspections, reports):
+for r in (auth, clients, objects, applications, inspections, reports, building_types):
     app.include_router(r.router, prefix=settings.API_V1_PREFIX)
 
 # Serve frontend static files

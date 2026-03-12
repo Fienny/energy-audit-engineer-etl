@@ -92,6 +92,8 @@ class ApplicationDetail(ApplicationOut):
 
 class InspectionCreate(BaseModel):
     application_id: int
+    building_type: str | None = None
+    building_subtype: str | None = None
     heating_consumption: float | None = None
     electricity_consumption: float | None = None
     water_consumption: float | None = None
@@ -108,6 +110,8 @@ class InspectionCreate(BaseModel):
 
 
 class InspectionUpdate(BaseModel):
+    building_type: str | None = None
+    building_subtype: str | None = None
     heating_consumption: float | None = None
     electricity_consumption: float | None = None
     water_consumption: float | None = None
@@ -129,6 +133,8 @@ class InspectionOut(BaseModel):
     application_id: int
     engineer_id: int
     status: str
+    building_type: str | None
+    building_subtype: str | None
     heating_consumption: float | None
     electricity_consumption: float | None
     water_consumption: float | None

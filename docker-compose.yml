@@ -26,8 +26,12 @@ services:
       APP_POSTGRES_PASSWORD: energy_audit_secret
       APP_POSTGRES_DB: energy_audit
       APP_SECRET_KEY: change-me-in-production
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
     ports:
       - "8000:8000"
 
 volumes:
   pgdata:
+  uploads:

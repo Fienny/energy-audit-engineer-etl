@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Energy Audit System"
+    PROJECT_NAME: str = "Engineering Workspace"
     API_V1_PREFIX: str = "/api/v1"
 
     # PostgreSQL

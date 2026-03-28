@@ -1,6 +1,5 @@
 /**
- * api.js — thin wrapper around fetch for the Energy Audit API.
- * Handles auth token, JSON serialization, and error toasts.
+ * api.js — fetch wrapper for Engineering Workspace API.
  */
 
 const API_BASE = '/api/v1';
@@ -14,13 +13,8 @@ const api = {
     else localStorage.removeItem('token');
   },
 
-  getToken() {
-    return this._token;
-  },
-
-  isLoggedIn() {
-    return !!this._token;
-  },
+  getToken() { return this._token; },
+  isLoggedIn() { return !!this._token; },
 
   async _request(method, path, body = null, extraHeaders = {}) {
     const headers = { ...extraHeaders };
@@ -58,7 +52,6 @@ const api = {
   patch(path, body) { return this._request('PATCH', path, body); },
   delete(path) { return this._request('DELETE', path); },
 
-  // Auth
   async login(username, password) {
     const form = new FormData();
     form.append('username', username);
@@ -75,21 +68,17 @@ const api = {
 
   me() { return this.get('/auth/me'); },
 
-  // Download report (returns blob URL)
-  async downloadReport(appId) {
-    const headers = {};
-    if (this._token) headers['Authorization'] = `Bearer ${this._token}`;
-    const resp = await fetch(`${API_BASE}/reports/${appId}/download`, { headers });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.detail || 'Download failed');
-    }
-    const blob = await resp.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `report_application_${appId}.docx`;
-    a.click();
-    URL.revokeObjectURL(url);
+  async uploadFiles(projectId, fileList) {
+    const form = new FormData();
+    for (const f of fileList) form.append('files', f);
+    return this._request('POST', `/projects/${projectId}/files`, form);
+  },
+
+  downloadFileUrl(fileId) {
+    return `${API_BASE}/files/${fileId}/download?token=${encodeURIComponent(this._token)}`;
+  },
+
+  previewFileUrl(fileId) {
+    return `${API_BASE}/files/${fileId}/preview?token=${encodeURIComponent(this._token)}`;
   },
 };

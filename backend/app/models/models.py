@@ -1,17 +1,18 @@
 """
-SQLAlchemy ORM models for the Energy Audit system.
+SQLAlchemy ORM models for the Engineering Workspace.
 
 ER relationships:
-  Client 1---* AuditObject 1---1 Application *---1 User(operator)
-  Application 1---* Inspection *---1 User(engineer)
+  User 1---* Project (created_by)
+  Project 1---* ProjectFile
+  User 1---* ProjectFile (uploaded_by)
 """
 
 import enum
 from datetime import datetime
 
 from sqlalchemy import (
-    String, Text, Integer, Numeric, Enum, Boolean,
-    ForeignKey, DateTime, JSON, UniqueConstraint, Index,
+    String, Text, Integer, BigInteger, Enum, Boolean,
+    ForeignKey, DateTime, Index,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -19,36 +20,21 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 
-# ── Enums ──────────────────────────────────────────────────────────────
+# -- Enums --
 
 class UserRole(str, enum.Enum):
-    operator = "operator"
-    engineer = "engineer"
     admin = "admin"
-
-
-class ApplicationStatus(str, enum.Enum):
-    new = "new"
-    in_progress = "in_progress"
-    inspection_done = "inspection_done"
-    report_generated = "report_generated"
-    closed = "closed"
-
-
-class InspectionStatus(str, enum.Enum):
-    draft = "draft"
-    submitted = "submitted"
-
-
-class ObjectType(str, enum.Enum):
-    residential = "residential"
-    commercial = "commercial"
-    industrial = "industrial"
-    public_building = "public_building"
+    engineer = "engineer"
     other = "other"
 
 
-# ── Users ──────────────────────────────────────────────────────────────
+class ProjectStatus(str, enum.Enum):
+    active = "active"
+    completed = "completed"
+    archived = "archived"
+
+
+# -- Users --
 
 class User(Base):
     __tablename__ = "users"
@@ -63,150 +49,70 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    # relationships
-    applications_created: Mapped[list["Application"]] = relationship(
-        back_populates="operator", foreign_keys="Application.operator_id"
+    projects_created: Mapped[list["Project"]] = relationship(
+        back_populates="creator", foreign_keys="Project.created_by"
     )
-    inspections: Mapped[list["Inspection"]] = relationship(back_populates="engineer")
+    files_uploaded: Mapped[list["ProjectFile"]] = relationship(
+        back_populates="uploader", foreign_keys="ProjectFile.uploaded_by"
+    )
 
 
-# ── Clients ────────────────────────────────────────────────────────────
+# -- Projects --
 
-class Client(Base):
-    __tablename__ = "clients"
+class Project(Base):
+    __tablename__ = "projects"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    contact_person: Mapped[str | None] = mapped_column(String(255))
-    phone: Mapped[str | None] = mapped_column(String(50))
-    email: Mapped[str | None] = mapped_column(String(255))
-    address: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-
-    audit_objects: Mapped[list["AuditObject"]] = relationship(back_populates="client")
-
-
-# ── Audit Objects ──────────────────────────────────────────────────────
-
-class AuditObject(Base):
-    __tablename__ = "audit_objects"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    client_id: Mapped[int] = mapped_column(ForeignKey("clients.id"), nullable=False)
-    address: Mapped[str] = mapped_column(Text, nullable=False)
-    object_type: Mapped[ObjectType] = mapped_column(Enum(ObjectType, name="object_type"), nullable=False)
-    total_area: Mapped[float | None] = mapped_column(Numeric(12, 2))
-    floors: Mapped[int | None] = mapped_column(Integer)
-    year_built: Mapped[int | None] = mapped_column(Integer)
     description: Mapped[str | None] = mapped_column(Text)
-    # JSONB for arbitrary extra parameters — keeps schema extensible
-    extra_params: Mapped[dict | None] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+    status: Mapped[ProjectStatus] = mapped_column(
+        Enum(ProjectStatus, name="project_status"), default=ProjectStatus.active, nullable=False
     )
-
-    client: Mapped["Client"] = relationship(back_populates="audit_objects")
-    application: Mapped["Application | None"] = relationship(
-        back_populates="audit_object", uselist=False
-    )
-
-
-# ── Applications (Заявки) ─────────────────────────────────────────────
-
-class Application(Base):
-    __tablename__ = "applications"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    operator_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    audit_object_id: Mapped[int] = mapped_column(
-        ForeignKey("audit_objects.id"), unique=True, nullable=False
-    )
-    status: Mapped[ApplicationStatus] = mapped_column(
-        Enum(ApplicationStatus, name="application_status"), default=ApplicationStatus.new, nullable=False
-    )
-    service_type: Mapped[str] = mapped_column(
-        String(100), default="energy_audit", nullable=False
-    )
-    notes: Mapped[str | None] = mapped_column(Text)
-    report_generated: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
-
-    operator: Mapped["User"] = relationship(
-        back_populates="applications_created", foreign_keys=[operator_id]
-    )
-    audit_object: Mapped["AuditObject"] = relationship(back_populates="application")
-    inspections: Mapped[list["Inspection"]] = relationship(back_populates="application")
-
-    __table_args__ = (
-        Index("ix_applications_status", "status"),
-    )
-
-
-# ── Inspections (Обследования / Метрики) ──────────────────────────────
-
-class Inspection(Base):
-    """
-    Each engineer creates their own Inspection record per Application.
-    `metrics` is a JSONB column — this makes adding new metric fields trivial
-    without ALTER TABLE. Validation happens at the application layer.
-    """
-    __tablename__ = "inspections"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    application_id: Mapped[int] = mapped_column(
-        ForeignKey("applications.id"), nullable=False
-    )
-    engineer_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"), nullable=False
-    )
-    status: Mapped[InspectionStatus] = mapped_column(
-        Enum(InspectionStatus, name="inspection_status"), default=InspectionStatus.draft, nullable=False
-    )
-
-    # ── Building classification ──
     building_type: Mapped[str | None] = mapped_column(String(100))
     building_subtype: Mapped[str | None] = mapped_column(String(100))
-
-    # ── Core energy-audit metrics (typed columns for indexing / reporting) ──
-    heating_consumption: Mapped[float | None] = mapped_column(Numeric(12, 2))
-    electricity_consumption: Mapped[float | None] = mapped_column(Numeric(12, 2))
-    water_consumption: Mapped[float | None] = mapped_column(Numeric(12, 2))
-    gas_consumption: Mapped[float | None] = mapped_column(Numeric(12, 2))
-    wall_thickness_mm: Mapped[float | None] = mapped_column(Numeric(8, 2))
-    window_type: Mapped[str | None] = mapped_column(String(100))
-    insulation_type: Mapped[str | None] = mapped_column(String(100))
-    thermal_resistance: Mapped[float | None] = mapped_column(Numeric(8, 4))
-    air_tightness: Mapped[float | None] = mapped_column(Numeric(8, 4))
-    indoor_temperature: Mapped[float | None] = mapped_column(Numeric(5, 2))
-    outdoor_temperature: Mapped[float | None] = mapped_column(Numeric(5, 2))
-
-    # ── Extensible JSONB bucket for any extra / future metrics ──
-    extra_metrics: Mapped[dict | None] = mapped_column(JSON, default=dict)
-
-    notes: Mapped[str | None] = mapped_column(Text)
-
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    application: Mapped["Application"] = relationship(back_populates="inspections")
-    engineer: Mapped["User"] = relationship(back_populates="inspections")
+    creator: Mapped["User"] = relationship(
+        back_populates="projects_created", foreign_keys=[created_by]
+    )
+    files: Mapped[list["ProjectFile"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
-        UniqueConstraint(
-            "application_id", "engineer_id",
-            name="uq_inspection_application_engineer",
-        ),
-        Index("ix_inspections_app_status", "application_id", "status"),
+        Index("ix_projects_code", "code"),
+        Index("ix_projects_status", "status"),
+    )
+
+
+# -- Project Files --
+
+class ProjectFile(Base):
+    __tablename__ = "project_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    stored_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_type: Mapped[str] = mapped_column(String(50), default="other", nullable=False)
+    file_size: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    uploaded_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    project: Mapped["Project"] = relationship(back_populates="files")
+    uploader: Mapped["User"] = relationship(
+        back_populates="files_uploaded", foreign_keys=[uploaded_by]
+    )
+
+    __table_args__ = (
+        Index("ix_project_files_project", "project_id"),
     )
